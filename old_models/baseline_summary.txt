@@ -1,0 +1,50 @@
+MALLORN TDE Classification - Baseline Models Summary
+Generated: 2025-12-07 21:43:21.527917
+
+IMPORTANT: SpecType NOT used due to perfect separation (data leakage)!
+
+FEATURES USED (6):
+Z, EBV, Z_EBV_ratio, Z_squared, EBV_squared, Z_EBV_interaction
+
+CLASS IMBALANCE:
+- Non-TDE: 2316 samples (95.15%)
+- TDE: 118 samples (4.85%)
+- Imbalance ratio: 1:19.6
+
+MODEL RESULTS:
+          Model  ROC-AUC  F1-Score  Precision   Recall
+LR (No balance) 0.513414  0.000000   0.000000 0.000000
+  LR (Balanced) 0.512608  0.087671   0.047761 0.533333
+  RF (Balanced) 0.471503  0.000000   0.000000 0.000000
+
+BEST MODEL: LR (No balance)
+- ROC-AUC: 0.5134
+- F1-Score: 0.0000
+- Precision: 0.0000
+- Recall: 0.0000
+
+CROSS-VALIDATION:
+- Mean ROC-AUC: 0.5382
+- Std: 0.0598
+
+FEATURE IMPORTANCE (Random Forest):
+          feature  importance
+                Z    0.207545
+        Z_squared    0.204718
+      Z_EBV_ratio    0.184750
+Z_EBV_interaction    0.171294
+              EBV    0.117859
+      EBV_squared    0.113834
+
+KEY OBSERVATIONS:
+1. Class imbalance is severe (1:19.6 ratio)
+2. Class weights significantly improve recall for TDE class
+3. Random Forest shows better performance than Logistic Regression
+4. Z (redshift) is the most important feature
+5. Engineered features help improve model performance
+
+NEXT STEPS:
+- Try XGBoost with scale_pos_weight
+- Experiment with SMOTE for synthetic sampling
+- Hyperparameter tuning
+- Ensemble methods

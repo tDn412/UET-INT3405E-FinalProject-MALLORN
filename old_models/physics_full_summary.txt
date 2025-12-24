@@ -1,0 +1,35 @@
+MALLORN TDE Classification - Physics-Informed Full Model
+Generated: 2025-12-12 19:36:24.113623
+
+DATASET:
+- Training: 3,043 objects (148 TDEs, 4.86%)
+- Test: 7,135 objects
+- Features: 15
+
+MODEL: LightGBM
+- is_unbalance: True
+- n_estimators: 500
+- max_depth: 7
+- learning_rate: 0.05
+
+CROSS-VALIDATION (5-Fold Stratified):
+ fold  threshold       f1  precision   recall      auc
+    1       0.22 0.382979   0.529412 0.300000 0.829879
+    2       0.03 0.475000   0.380000 0.633333 0.879620
+    3       0.03 0.500000   0.428571 0.600000 0.874324
+    4       0.05 0.419355   0.393939 0.448276 0.897505
+    5       0.02 0.368421   0.297872 0.482759 0.878149
+
+Mean F1-Score: 0.4292 (+/- 0.0571)
+Mean ROC-AUC: 0.8719
+Optimal Threshold: 0.070
+
+TOP 5 FEATURES:
+       feature  importance
+ flux_skewness        1265
+flux_ratio_r_i        1142
+      duration        1129
+flux_ratio_g_r        1095
+flux_ratio_i_z        1066
+
+SUBMISSION: submission_physics_full.csv
