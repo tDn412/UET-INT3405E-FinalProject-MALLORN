@@ -20,7 +20,7 @@ for path in input_dirs:
         break
 if BASE_PATH == '' and len(input_dirs) > 0: BASE_PATH = input_dirs[0]
 
-# --- 2. CÁC HÀM HỖ TRỢ (TDE FIT & BIẾN ĐỔI FOURIER) ---
+# --- 2. CÁC HÀM HỖ TRỢ (TDE FIT & FFT features) ---
 
 def fit_tde_shape(t, f, f_peak, t_peak):
     """Fit nhanh mô hình TDE power-law"""
@@ -42,7 +42,7 @@ def fit_tde_shape(t, f, f_peak, t_peak):
     except: return -1.0
 
 def get_fft_features(flux):
-    """Lấy đặc trưng tần số (Fourier)"""
+    """Lấy features tần số (Fourier)"""
     if len(flux) < 5: return [0]*4
     f_fft = np.abs(rfft(flux))
     if len(f_fft) < 3: return [0]*4
@@ -55,7 +55,7 @@ def extract_massive_features(time, flux, err, filt):
     n = len(flux)
     if n < 3: return {}
 
-    # --- A. THỐNG KÊ CƠ BẢN (15 features) ---
+    # --- A. Basic Stats (15 features) ---
     f_max = np.max(flux)
     f_min = np.min(flux)
     f_mean = np.mean(flux)
@@ -71,7 +71,7 @@ def extract_massive_features(time, flux, err, filt):
     f[f'{filt}_amp'] = (f_max - f_min) / (f_mean + 1e-9)
     f[f'{filt}_cv'] = f_std / (f_mean + 1e-9) # Coeff of Variation
     
-    # --- B. CÁC PHÂN VỊ CHI TIẾT (15 features) ---
+    # --- B. Percentiles CHI TIẾT (15 features) ---
     # Lấy dày đặc để bắt hình dạng
     pcts = np.percentile(flux, [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100])
     for i, p in zip([0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100], pcts):
@@ -90,7 +90,7 @@ def extract_massive_features(time, flux, err, filt):
     # Von Neumann ratio (độ mượt)
     f[f'{filt}_von_neumann'] = np.sum(diff**2) / (np.sum((flux - f_mean)**2) + 1e-9)
 
-    # --- D. TÍCH LŨY STATS (Energy) (5 features) ---
+    # --- D. Cumulative stats STATS (Energy) (5 features) ---
     cum_flux = np.cumsum(np.abs(flux))
     f[f'{filt}_energy'] = cum_flux[-1]
     # Linear trend of cumulative flux
@@ -115,7 +115,7 @@ def extract_massive_features(time, flux, err, filt):
         f[f'{filt}_slope_fall'] = linregress(time[mask_fall], flux[mask_fall])[0]
     else: f[f'{filt}_slope_fall'] = 0
 
-    # --- F. BIẾN ĐỔI FOURIER COMPONENTS (4 features) ---
+    # --- F. FFT features COMPONENTS (4 features) ---
     fft_vals = get_fft_features(flux)
     for i, val in enumerate(fft_vals):
         f[f'{filt}_fft_{i}'] = val
@@ -132,7 +132,7 @@ def process_pipeline_massive(df_lc, df_log):
     
     # De-extinction
     EXTINCTION = {'u': 4.81, 'g': 3.64, 'r': 2.70, 'i': 2.06, 'z': 1.58, 'y': 1.31}
-    df = df_lc.gộp(df_log[['object_id', 'EBV']], on='object_id', how='left').fillna(0)
+    df = df_lc.merge(df_log[['object_id', 'EBV']], on='object_id', how='left').fillna(0)
     df['R'] = df['Filter'].map(EXTINCTION)
     df['Flux_Corr'] = df['Flux'] * (10 ** (0.4 * df['R'] * df['EBV']))
     
@@ -202,8 +202,8 @@ print("⚙️ Generatine Massive Test Features...")
 test_feats = process_pipeline_massive(test_lc, test_log)
 
 print("🔗 Merging...")
-X_full = train_log.gộp(train_feats, on='object_id', how='left').fillna(-999)
-X_test_final = test_log.gộp(test_feats, on='object_id', how='left').fillna(-999)
+X_full = train_log.merge(train_feats, on='object_id', how='left').fillna(-999)
+X_test_final = test_log.merge(test_feats, on='object_id', how='left').fillna(-999)
 
 # Đồng bộ cột
 cols = [c for c in X_full.columns if c not in ['object_id', 'target', 'split', 'SpecType', 'English Translation'] 

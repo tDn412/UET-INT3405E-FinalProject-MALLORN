@@ -8,16 +8,16 @@ import seaborn as sns
 import gc
 
 # =========================================================
-# CẤU HÌNH – chỗ để bạn tinh chỉnh
+# ## Config tham số model
 # =========================================================
-TOP_K = 140          # số feature sau bước lọc (thử 180 / 200 / 220)
-SCALE_POS_BASE = 1.5 # nhân với (N0/N1); thử 1.0 / 1.5 / 2.0
+TOP_K = 140          # giữ lại top k features (thử 180 / 200 / 220)
+SCALE_POS_BASE = 1.5 # scale weight cho class imbalanced; thử 1.0 / 1.5 / 2.0
 THRESH_MIN = 0.30
 THRESH_MAX = 0.80
 THRESH_STEP = 0.01
 
 # =========================================================
-# 1. CHUẨN BỊ DỮ LIỆU
+# 1. Load Data & Xử lý
 # =========================================================
 all_features = [
     c for c in X_full.columns
@@ -29,12 +29,12 @@ X = X_full[all_features]
 y = X_full["target"].astype(int)
 X_test_raw = X_test_final[all_features]
 
-print(f"📦 Dữ liệu gốc: {X.shape[1]} đặc trưng")
+print(f"📦 Original data: {X.shape[1]} features")
 
 # =========================================================
-# 2. CHỌN LỌC ĐẶC TRƯNG VỚI LIGHTGBM (BCE)
+# 2. Feature Selection (dùng LightGBM) (BCE)
 # =========================================================
-print("🔍 Chọn Lọc Đặc Trưng với LightGBM (BCE)...")
+print("🔍 Đang chạy feature selection... (BCE)...")
 fs_model = lgb.LGBMClassifier(
     n_estimators=800,
     learning_rate=0.05,
@@ -52,14 +52,14 @@ importances = fs_model.feature_importances_
 indices = np.argsort(importances)[::-1]
 top_features = [all_features[i] for i in indices[:TOP_K]]
 
-print(f"✅ Chọn {len(top_features)} đặc trưng.")
+print(f"✅ Chọn {len(top_features)} features.")
 print("   Top 5:", top_features[:5])
 
 X = X[top_features]
 X_test = X_test_raw[top_features]
 
 # =========================================================
-# 3. LIGHTGBM CHÍNH (BCE + scale_pos_weight)
+# 3. Train LightGBM (Final) (BCE + scale_pos_weight)
 # =========================================================
 n_pos = (y == 1).sum()
 n_neg = (y == 0).sum()
@@ -89,7 +89,7 @@ kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 oof_pred = np.zeros(len(X))
 test_pred = np.zeros(len(X_test))
 
-print("\n🚀 Huấn luyện LightGBM (BCE + scale_pos_weight)...")
+print("\n🚀 Start training LightGBM (BCE + scale_pos_weight)...")
 for fold, (tr_idx, va_idx) in enumerate(kf.split(X, y)):
     X_tr, X_va = X.iloc[tr_idx], X.iloc[va_idx]
     y_tr, y_va = y.iloc[tr_idx], y.iloc[va_idx]
@@ -124,9 +124,9 @@ for fold, (tr_idx, va_idx) in enumerate(kf.split(X, y)):
     gc.collect()
 
 # =========================================================
-# 4. TÌM THRESHOLD TỐI ƯU TRÊN OOF
+# 4. Tìm Threshold tối ưu
 # =========================================================
-print("\n🎚️ Dò threshold tối ưu trên OOF...")
+print("\n🎚️ Tìm threshold ngon nhất trên OOF set......")
 best_f1, best_t, best_frac = 0.0, 0.5, 0.0
 
 for t in np.arange(THRESH_MIN, THRESH_MAX, THRESH_STEP):
@@ -138,27 +138,27 @@ for t in np.arange(THRESH_MIN, THRESH_MAX, THRESH_STEP):
 
 print("=" * 40)
 print(f"🏆 FINAL CV F1: {best_f1:.4f} @ Threshold {best_t:.3f}")
-print(f"  Tỉ lệ dự đoán TDE trên train: {best_frac:.4f}")
+print(f"  Tỉ lệ TDE (train):: {best_frac:.4f}")
 print("=" * 40)
 
 # =========================================================
-# 5. FILE NỘP BÀI
+# 5. Tạo file Submission
 # =========================================================
 sub = pd.DataFrame({
     "object_id": X_test_final["object_id"],
     "target": (test_pred > best_t).astype(int),
 })
 sub.to_csv("submission_bce_tuned2.csv", index=False)
-print(f"✅ Đã lưu submission_bce_tuned.csv (TDEs: {sub['target'].sum()})")
+print(f"✅ Save submission xong:_bce_tuned.csv (TDEs: {sub['target'].sum()})")
 
 # =========================================================
-# 6. ĐỘ QUAN TRỌNG ĐẶC TRƯNG
+# 6. Feature Importance
 # =========================================================
 plt.figure(figsize=(8, 12))
 imp_idx = np.argsort(last_model.feature_importance())[::-1][:30]
 imp_vals = last_model.feature_importance()[imp_idx]
 imp_names = [top_features[i] for i in imp_idx]
 sns.barplot(x=imp_vals, y=imp_names)
-plt.title("Top 30 Đặc trưng quan trọng nhất (LightGBM)")
+plt.title("Top 30 Important Features (LightGBM)")
 plt.tight_layout()
 plt.show()

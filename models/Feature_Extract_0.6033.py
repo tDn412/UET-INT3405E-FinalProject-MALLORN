@@ -10,7 +10,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-# ===================== 1. TÌM ĐƯỜNG DỮ LIỆU =====================
+# ===================== 1. Tìm đường dẫn data =====================
 
 print("📂 Đang tìm dữ liệu MALLORN...")
 input_dirs = glob.glob("/kaggle/input/*")
@@ -23,10 +23,10 @@ if BASE_PATH == "" and len(input_dirs) > 0:
     BASE_PATH = input_dirs[0]
 print("BASE_PATH:", BASE_PATH)
 
-# ===================== 2. HỖ TRỢ: TDE FIT + BIẾN ĐỔI FOURIER =====================
+# ===================== 2. Utils: TDE fit & FFT features =====================
 
 def fit_tde_shape(t, f, f_peak, t_peak):
-    """Khớp Chi-bình phương cho phân rã TDE ~ (t - t0)^(-5/3)."""
+    """Chi-squared fit for TDE ~ (t - t0)^(-5/3)."""
     mask = (t > t_peak) & (f > 0.05 * f_peak)
     if np.sum(mask) < 3:
         return -1.0
@@ -62,7 +62,7 @@ def get_fft_features(flux):
         vals += [0.0] * (4 - len(vals))
     return vals
 
-# ===================== 3. HÀM TRÍCH XUẤT FEATURE =====================
+# ===================== 3. Hàm extract features =====================
 
 def extract_band_features(time, flux, err, filt, z):
     f = {}
@@ -70,7 +70,7 @@ def extract_band_features(time, flux, err, filt, z):
     if n < 3:
         return f, None, None
 
-    # ---- THỐNG KÊ CƠ BẢN ----
+    # ---- Basic Stats ----
     f_max = np.max(flux)
     f_min = np.min(flux)
     f_mean = np.mean(flux)
@@ -86,14 +86,14 @@ def extract_band_features(time, flux, err, filt, z):
     f[f"{filt}_amp"] = (f_max - f_min) / (f_mean + 1e-9)
     f[f"{filt}_cv"] = f_std / (f_mean + 1e-9)
 
-    # ---- CÁC PHÂN VỊ ----
+    # ---- Percentiles ----
     pcts = np.percentile(flux, [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100])
     for i, p in zip([0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100], pcts):
         f[f"{filt}_p{i:02d}"] = p
     f[f"{filt}_ratio_p95_p05"] = pcts[11] / (pcts[1] + 1e-9)
     f[f"{filt}_ratio_p95_median"] = pcts[11] / (pcts[6] + 1e-9)
 
-    # ---- SAI PHÂN / VON NEUMANN ----
+    # ---- Diff / Von Neumann ----
     diff = np.diff(flux)
     f[f"{filt}_diff_mean"] = np.mean(diff)
     f[f"{filt}_diff_std"] = np.std(diff)
@@ -101,7 +101,7 @@ def extract_band_features(time, flux, err, filt, z):
     f[f"{filt}_diff_min"] = np.min(diff)
     f[f"{filt}_von_neumann"] = np.sum(diff ** 2) / (np.sum((flux - f_mean) ** 2) + 1e-9)
 
-    # ---- TÍCH LŨY ----
+    # ---- Cumulative stats ----
     cum_flux = np.cumsum(np.abs(flux))
     f[f"{filt}_energy"] = cum_flux[-1]
     try:
@@ -110,7 +110,7 @@ def extract_band_features(time, flux, err, filt, z):
     except Exception:
         f[f"{filt}_cum_slope"] = 0.0
 
-    # ---- DẠNG THỜI GIAN (OBS + REST) ----
+    # ---- Time features (OBS + REST) ----
     t_peak = time[np.argmax(flux)]
     t_min = time.min()
     t_max = time.max()
@@ -138,14 +138,14 @@ def extract_band_features(time, flux, err, filt, z):
     else:
         f[f"{filt}_dur_025"] = 0.0
 
-    # ---- ĐỘ DỐC LOG-DECAY ----
+    # ---- Log-decay slope ----
     log_flux = np.log10(np.maximum(flux, 1e-6))
     if np.sum(mask_fall) > 2:
         f[f"{filt}_logdecay_slope"] = linregress(time[mask_fall], log_flux[mask_fall])[0]
     else:
         f[f"{filt}_logdecay_slope"] = 0.0
 
-    # ---- ĐA THỨC BẬC 2 ----
+    # ---- Polyfit BẬC 2 ----
     t_norm = (time - time.mean()) / (1.0 + z_eff)
     if len(t_norm) >= 6:
         c0, c1, c2 = polyfit(t_norm, flux, 2)
@@ -153,31 +153,31 @@ def extract_band_features(time, flux, err, filt, z):
         f[f"{filt}_poly2_c1"] = c1
         f[f"{filt}_poly2_c2"] = c2
 
-    # ---- BIẾN ĐỔI FOURIER ----
+    # ---- FFT features ----
     fft_vals = get_fft_features(flux)
     for i, val in enumerate(fft_vals):
         f[f"{filt}_fft_{i}"] = val
 
-    # ---- TỈ SỐ TÍN HIỆU TRÊN NHIỄU ----
+    # ---- SNR stats ----
     snr = flux / (err + 1e-9)
     f[f"{filt}_snr_mean"] = np.mean(snr)
     f[f"{filt}_snr_max"] = np.max(snr)
     f[f"{filt}_snr_p90"] = np.percentile(snr, 90)
     f[f"{filt}_n_snr_gt5"] = np.sum(snr > 5)
 
-    # ---- LUẬT MŨ TDE ----
+    # ---- Fit TDE Power-law ----
     if filt in ["g", "r", "u"]:
         f[f"{filt}_tde_chisq"] = fit_tde_shape(time, flux, f_max, t_peak)
 
     return f, t_peak, f_max
 
-# ===================== 4. QUY TRÌNH XỬ LÝ TỪNG VẬT THỂ =====================
+# ===================== 4. Pipeline xử lý từng object =====================
 
 def process_pipeline(df_lc, df_log):
     print(" -> Trích xuất features...")
     EXTINCTION = {"u": 4.81, "g": 3.64, "r": 2.70, "i": 2.06, "z": 1.58, "y": 1.31}
 
-    df = df_lc.gộp(df_log[["object_id", "EBV", "Z"]], on="object_id", how="left").fillna(0)
+    df = df_lc.merge(df_log[["object_id", "EBV", "Z"]], on="object_id", how="left").fillna(0)
     df["R"] = df["Filter"].map(EXTINCTION)
     df["Flux_Corr"] = df["Flux"] * (10 ** (0.4 * df["R"] * df["EBV"].clip(0, 2.0)))
 
@@ -228,7 +228,7 @@ def process_pipeline(df_lc, df_log):
                 good_tde_fit += 1
         row["n_good_tde_fit"] = good_tde_fit
 
-        # Global baseline & TỈ SỐ TÍN HIỆU TRÊN NHIỄU max
+        # Global baseline & SNR stats max
         row["baseline_rest"] = (
             (grp["Time (MJD)"].max() - grp["Time (MJD)"].min()) / (1.0 + max(z, 0.0))
         )
@@ -251,9 +251,9 @@ def process_pipeline(df_lc, df_log):
     df_feats = pd.DataFrame(features)
     return df_feats.fillna(-999)
 
-# ===================== 5. THỰC HIỆN TRÍCH XUẤT =====================
+# ===================== 5. Chạy Feature Extraction =====================
 
-print("📥 Đang tải lightcurves...")
+print("📥 Loading lightcurves...")
 train_files = glob.glob(os.path.join(BASE_PATH, "**", "train_full_lightcurves.csv"), recursive=True)
 test_files = glob.glob(os.path.join(BASE_PATH, "**", "test_full_lightcurves.csv"), recursive=True)
 
@@ -263,14 +263,14 @@ test_log = pd.read_csv(os.path.join(BASE_PATH, "test_log.csv"))
 train_lc = pd.concat([pd.read_csv(f) for f in train_files], ignore_index=True).dropna(subset=["Flux"])
 test_lc = pd.concat([pd.read_csv(f) for f in test_files], ignore_index=True).dropna(subset=["Flux"])
 
-print("⚙️ Đang tạo đặc trưng tập Train...")
+print("⚙️ Đang tạo features tập Train...")
 train_feats = process_pipeline(train_lc, train_log)
-print("⚙️ Đang tạo đặc trưng tập Test...")
+print("⚙️ Đang tạo features tập Test...")
 test_feats = process_pipeline(test_lc, test_log)
 
-print("🔗 Đang gộp thông tin log...")
-X_full = train_log.gộp(train_feats, on="object_id", how="left").fillna(-999)
-X_test_final = test_log.gộp(test_feats, on="object_id", how="left").fillna(-999)
+print("🔗 Merging logs...")
+X_full = train_log.merge(train_feats, on="object_id", how="left").fillna(-999)
+X_test_final = test_log.merge(test_feats, on="object_id", how="left").fillna(-999)
 
 cols = [
     c for c in X_full.columns

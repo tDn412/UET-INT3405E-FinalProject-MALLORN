@@ -4,8 +4,8 @@ MALLORN Astronomical Classification Challenge - Final Project
 ## Cấu trúc thư mục
 
 - **models/**: Chứa mã nguồn các mô hình chính (LightGBM ~0.6033/0.62) và các phiên bản chọn lọc.
-  - `file1_*.py`: Các script trích xuất đặc trưng.
-  - `file2*.py`: Các script huấn luyện và dự đoán.
+  - `Feature_Extract_*.py`: Các script trích xuất đặc trưng (trước đây là file1).
+  - `Train_model*.py`: Các script huấn luyện và dự đoán (trước đây là file2).
   
 - **notebooks/**: Chứa notebook tổng hợp cuối cùng.
   - `final-and-image-gen.ipynb`: Notebook chạy toàn bộ quy trình từ trích xuất đặc trưng, huấn luyện model đến sinh các biểu đồ báo cáo.

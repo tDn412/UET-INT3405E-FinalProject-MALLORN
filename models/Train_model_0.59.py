@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import gc
 
-# 1. CHUẨN BỊ DỮ LIỆU
+# 1. Load Data & Xử lý
 all_features = [c for c in X_full.columns if c not in ['object_id', 'target', 'split', 'SpecType', 'English Translation'] 
             and pd.api.types.is_numeric_dtype(X_full[c])]
 
@@ -17,7 +17,7 @@ X = X_full[all_features]
 y = X_full['target']
 X_test_raw = X_test_final[all_features]
 
-print(f"📦 Dữ liệu gốc: {X.shape[1]} đặc trưng")
+print(f"📦 Original data: {X.shape[1]} features")
 
 # --- 2. GIAI ĐOẠN 1: CHỌN LỌC ĐẶC TRƯNG (Lọc rác) ---
 print("🔍 Đang chạy Chọn Lọc Đặc Trưng (dùng LightGBM nhanh)...")
@@ -100,7 +100,7 @@ for fold, (tr_idx, va_idx) in enumerate(kf.split(X, y)):
     del model, X_train, X_val
     gc.collect()
 
-# --- 4. TỐI ƯU NGƯỠNG & FILE NỘP BÀI ---
+# --- 4. TỐI ƯU NGƯỠNG & Tạo file Submission ---
 print("\n🎚️ Đang dò tìm ngưỡng tối ưu (Threshold Tuning)...")
 best_f1 = 0
 best_t = 0.5
@@ -124,7 +124,7 @@ print(f"✅ Đã lưu file: submission_massive_select.csv (TDEs: {sub['target'].
 
 # Vẽ Độ Quan Trọng Đặc Trưng
 plt.figure(figsize=(10, 15))
-# Lấy importance từ lần chạy cuối (hoặc có thể tích lũy)
+# Lấy importance từ lần chạy cuối (hoặc có thể Cumulative stats)
 # Lưu ý: Đây là importance sau khi đã lọc
 sns.barplot(x=model.feature_importances_[:30], y=top_features[:30])
 plt.title("Top 30 Selected Features (XGBoost Gain)")
